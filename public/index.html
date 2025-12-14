@@ -3,22 +3,13 @@
 <head>
   <title>Water Sensor Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     body { font-family: Arial; margin: 20px; }
     h1 { color: #333; text-align: center; }
-    .container {
-      display: flex;
-      gap: 20px;
-    }
-    .main-chart {
-      flex: 3;
-    }
-    .side-charts {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
+    .container { display: flex; gap: 20px; }
+    .main-chart { flex: 3; }
+    .side-charts { flex: 1; display: flex; flex-direction: column; gap: 20px; }
     canvas { background: #f9f9f9; padding: 10px; border-radius: 8px; }
     .chart-title { text-align: center; font-size: 14px; margin-bottom: 5px; }
   </style>
@@ -26,58 +17,56 @@
 <body>
   <h1>Water Sensor Dashboard</h1>
   <div class="container">
-    <!-- Big chart -->
     <div class="main-chart">
       <canvas id="waterChart" width="800" height="400"></canvas>
     </div>
-
-    <!-- Side small charts -->
     <div class="side-charts">
-      <div>
-        <div class="chart-title">1 Day Avg</div>
-        <canvas id="chart1Day"></canvas>
-      </div>
-      <div>
-        <div class="chart-title">3 Days Avg</div>
-        <canvas id="chart3Days"></canvas>
-      </div>
-      <div>
-        <div class="chart-title">1 Week Avg</div>
-        <canvas id="chart1Week"></canvas>
-      </div>
-      <div>
-        <div class="chart-title">1 Month Avg</div>
-        <canvas id="chart1Month"></canvas>
-      </div>
-      <div>
-        <div class="chart-title">1 Year Avg</div>
-        <canvas id="chart1Year"></canvas>
-      </div>
+      <div><div class="chart-title">1 Day Avg</div><canvas id="chart1Day"></canvas></div>
+      <div><div class="chart-title">3 Days Avg</div><canvas id="chart3Days"></canvas></div>
+      <div><div class="chart-title">1 Week Avg</div><canvas id="chart1Week"></canvas></div>
+      <div><div class="chart-title">1 Month Avg</div><canvas id="chart1Month"></canvas></div>
+      <div><div class="chart-title">1 Year Avg</div><canvas id="chart1Year"></canvas></div>
     </div>
   </div>
 
   <script>
-    // Helper function to calculate average
+    // Helper for averages
     function avg(data) {
       if (!data.length) return 0;
       return (data.reduce((a,b)=>a+b,0)/data.length).toFixed(2);
     }
 
-    // Main chart
+    // Main scrollable chart
     const mainCtx = document.getElementById('waterChart').getContext('2d');
     const waterChart = new Chart(mainCtx, {
       type: 'line',
       data: { labels: [], datasets: [{ label: 'Water Level', data: [], borderColor: 'blue', fill: false, tension: 0.2 }] },
-      options: { responsive:true, scales:{ x:{ title:{display:true,text:'Time'} }, y:{ title:{display:true,text:'Level'} } } }
+      options: {
+        responsive:true,
+        scales: {
+          x: { 
+            title:{display:true,text:'Time'}, 
+            type:'time',
+            time: { tooltipFormat:'HH:mm:ss', unit:'minute' }
+          },
+          y: { title:{display:true,text:'Level'} }
+        },
+        plugins: {
+          zoom: {
+            pan: { enabled:true, mode:'x' },
+            zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'x' }
+          }
+        }
+      }
     });
 
-    // Side charts (small)
+    // Side charts
     function createSmallChart(canvasId) {
       const ctx = document.getElementById(canvasId).getContext('2d');
       return new Chart(ctx, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'Avg Level', data: [], borderColor: 'green', fill:false }] },
-        options: { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{display:true} } }
+        type:'line',
+        data:{ labels:[], datasets:[{label:'Avg Level', data:[], borderColor:'green', fill:false}] },
+        options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{display:true} } }
       });
     }
 
@@ -87,20 +76,19 @@
     const chart1Month = createSmallChart('chart1Month');
     const chart1Year = createSmallChart('chart1Year');
 
-    // Fetch data from server and update charts
+    // Fetch data and update charts
     async function fetchData() {
       const res = await fetch('/api/water-level');
       const data = await res.json();
 
-      const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+      const labels = data.map(d => new Date(d.timestamp));
       const values = data.map(d => d.level);
 
-      // Update main chart
+      // Main chart
       waterChart.data.labels = labels;
       waterChart.data.datasets[0].data = values;
       waterChart.update();
 
-      // Compute averages for side charts
       const now = new Date();
       function filterByDays(days) {
         return values.filter((v,i) => {
@@ -109,7 +97,7 @@
         });
       }
 
-      // For simplicity, store one value (average) per chart
+      // Side charts (average per period)
       chart1Day.data.labels = ['1 Day']; chart1Day.data.datasets[0].data = [avg(filterByDays(1))]; chart1Day.update();
       chart3Days.data.labels = ['3 Days']; chart3Days.data.datasets[0].data = [avg(filterByDays(3))]; chart3Days.update();
       chart1Week.data.labels = ['1 Week']; chart1Week.data.datasets[0].data = [avg(filterByDays(7))]; chart1Week.update();
