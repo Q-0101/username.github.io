@@ -7,13 +7,45 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <style>
     body { font-family: Arial; margin: 20px; }
-    h1 { color: #333; text-align: center; }
+    h1 { color: #333; text-align: center; margin-bottom: 20px; }
+
     .container { display: flex; gap: 20px; }
-    .main-chart { flex: 3; }
-    .side-charts { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-    .side-charts > div { flex: 1; display: flex; flex-direction: column; }
-    canvas { background: #f9f9f9; padding: 10px; border-radius: 8px; width: 100%; }
-    .chart-title { text-align: center; font-size: 14px; margin-bottom: 5px; }
+
+    /* Big chart container */
+    .main-chart {
+      flex: 3;
+      height: 600px; /* fixed height */
+    }
+
+    /* Side charts container */
+    .side-charts {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 600px; /* same as big chart */
+    }
+
+    .side-charts > div {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0; /* prevents vertical growth */
+    }
+
+    canvas {
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      flex: 1;
+    }
+
+    .chart-title {
+      text-align: center;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 <body>
@@ -21,16 +53,31 @@
   <div class="container">
     <!-- Big chart -->
     <div class="main-chart">
-      <canvas id="waterChart" height="600"></canvas>
+      <canvas id="waterChart"></canvas>
     </div>
 
     <!-- Side small charts -->
     <div class="side-charts">
-      <div><div class="chart-title">1 Day Avg</div><canvas id="chart1Day" height="120"></canvas></div>
-      <div><div class="chart-title">3 Days Avg</div><canvas id="chart3Days" height="120"></canvas></div>
-      <div><div class="chart-title">1 Week Avg</div><canvas id="chart1Week" height="120"></canvas></div>
-      <div><div class="chart-title">1 Month Avg</div><canvas id="chart1Month" height="120"></canvas></div>
-      <div><div class="chart-title">1 Year Avg</div><canvas id="chart1Year" height="120"></canvas></div>
+      <div>
+        <div class="chart-title">1 Day Avg</div>
+        <canvas id="chart1Day"></canvas>
+      </div>
+      <div>
+        <div class="chart-title">3 Days Avg</div>
+        <canvas id="chart3Days"></canvas>
+      </div>
+      <div>
+        <div class="chart-title">1 Week Avg</div>
+        <canvas id="chart1Week"></canvas>
+      </div>
+      <div>
+        <div class="chart-title">1 Month Avg</div>
+        <canvas id="chart1Month"></canvas>
+      </div>
+      <div>
+        <div class="chart-title">1 Year Avg</div>
+        <canvas id="chart1Year"></canvas>
+      </div>
     </div>
   </div>
 
@@ -46,32 +93,37 @@
       type: 'line',
       data: { labels: [], datasets: [{ label: 'Water Level', data: [], borderColor: 'blue', fill: false, tension: 0.2 }] },
       options: {
-        responsive:true,
+        responsive: true,
         maintainAspectRatio: false,
         scales: {
           x: {
-            type:'time',
-            title:{ display:true, text:'Time' },
-            time: { tooltipFormat:'HH:mm:ss', unit:'minute' }
+            type: 'time',
+            title: { display: true, text: 'Time' },
+            time: { tooltipFormat: 'HH:mm:ss', unit: 'minute' }
           },
-          y: { title:{ display:true, text:'Level' } }
+          y: { title: { display: true, text: 'Level' } }
         },
         plugins: {
           zoom: {
-            pan: { enabled:true, mode:'x', overScaleMode: 'x' }, // horizontal only
-            zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'x' } // horizontal only
+            pan: { enabled: true, mode: 'x' },
+            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
           }
         }
       }
     });
 
-    // Side small charts
+    // Side charts
     function createSmallChart(canvasId) {
       const ctx = document.getElementById(canvasId).getContext('2d');
       return new Chart(ctx, {
-        type:'line',
-        data:{ labels:[], datasets:[{label:'Avg Level', data:[], borderColor:'green', fill:false}] },
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{display:true} } }
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Avg Level', data: [], borderColor: 'green', fill: false }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { display: false }, y: { display: true } }
+        }
       });
     }
 
