@@ -3,7 +3,6 @@
 <head>
   <title>Water Sensor Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <style>
     body { font-family: Arial; margin: 20px; }
@@ -46,16 +45,10 @@
       font-size: 14px;
       margin-bottom: 5px;
     }
-
-    .controls { text-align: center; margin-bottom: 10px; }
-    .controls button { padding: 5px 10px; font-size: 14px; }
   </style>
 </head>
 <body>
   <h1>Water Sensor Dashboard</h1>
-  <div class="controls">
-    <button onclick="resetView()">Reset View</button>
-  </div>
   <div class="container">
     <!-- Big chart -->
     <div class="main-chart">
@@ -80,8 +73,6 @@
 
     // Big chart
     const mainCtx = document.getElementById('waterChart').getContext('2d');
-    let userPanned = false;
-
     const waterChart = new Chart(mainCtx, {
       type: 'line',
       data: { 
@@ -101,40 +92,9 @@
           },
           y: { title: { display: true, text: 'Level' } }
         },
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              mode: 'x',
-              onPanStart: () => { userPanned = true; }
-            },
-            zoom: {
-              wheel: { enabled: true },
-              pinch: { enabled: true },
-              mode: 'x'
-            }
-          }
-        }
+        plugins: { legend: { display: true } }
       }
     });
-
-    function scrollToLatest() {
-      if(userPanned || !waterChart.data.labels.length) return;
-
-      const lastIndex = waterChart.data.labels.length - 1;
-      const lastTime = waterChart.data.labels[lastIndex];
-      const xScale = waterChart.scales.x;
-      const visibleRange = xScale.max - xScale.min;
-
-      xScale.options.min = new Date(lastTime - visibleRange);
-      xScale.options.max = lastTime;
-      waterChart.update('none');
-    }
-
-    function resetView() {
-      userPanned = false;
-      waterChart.resetZoom();
-    }
 
     // Side charts
     function createSmallChart(canvasId) {
@@ -161,21 +121,20 @@
       const res = await fetch('/api/water-level');
       const data = await res.json();
 
-      const labels = data.map(d => new Date(d.timestamp));
-      const values = data.map(d => d.level);
+      // Only take last 100 readings
+      const recentData = data.slice(-100);
+      const labels = recentData.map(d => new Date(d.timestamp));
+      const values = recentData.map(d => d.level);
 
       // Update big chart
       waterChart.data.labels = labels;
       waterChart.data.datasets[0].data = values;
       waterChart.update();
-      scrollToLatest();
 
       const now = new Date();
       function filterByDays(days) {
-        return values.filter((v,i) => {
-          const ts = new Date(data[i].timestamp);
-          return (now - ts)/(1000*60*60*24) <= days;
-        });
+        return data.filter(d => (now - new Date(d.timestamp))/(1000*60*60*24) <= days)
+                   .map(d => d.level);
       }
 
       // Update side charts averages
