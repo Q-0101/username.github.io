@@ -267,7 +267,7 @@
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        legend: { labels: { color: '#ffffff' } },
+        legend: { display: false, labels: { color: '#ffffff' } },
         tooltip: {
           enabled: true,
           mode: 'nearest',
@@ -324,12 +324,66 @@
     const chart1Year = createVerticalChart('chart1Year');
 
     async function fetchData() {
-     const res = await fetch('/api/water-level');
+     const res = await fetch('/api/water-level');   
      const data = await res.json();
 
   waterChart.data.labels = data.map(d => new Date(d.timestamp));
   waterChart.data.datasets[0].data = data.map(d => d.level);
   waterChart.update();
+
+  updateChartWithAggregatedDataLive(chart1Day, data, 'hour')
+  updateChartWithAggregatedDataLive(chart1Week, data, 'hour')
+  updateChartWithAggregatedDataLive(chart1Month, data, 'day')
+  updateChartWithAggregatedDataLive(chart1Year, data, 'day')
+
+  function updateChartWithAggregatedDataLive(chart, data, mode) {
+    const map = {};
+
+    // Include existing chart data in the map so ongoing buckets can update
+    if (chart.data.labels.length && chart.data.datasets[0].data.length) {
+        for (let i = 0; i < chart.data.labels.length; i++) {
+            const label = chart.data.labels[i];
+            const value = chart.data.datasets[0].data[i];
+            map[label.toISOString().slice(0, mode === 'hour' ? 13 : 10)] = { sum: value, count: 1 }; 
+            // Using count=1 as placeholder, we'll recompute properly below
+        }
+    }
+
+    // Aggregate new data points
+    data.forEach(d => {
+        const date = new Date(d.timestamp);
+        let key;
+
+        if (mode === 'hour') {
+            key = date.getFullYear() + '-' +
+                  String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                  String(date.getDate()).padStart(2, '0') + 'T' +
+                  String(date.getHours()).padStart(2, '0');
+        } else {
+            key = date.getFullYear() + '-' +
+                  String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                  String(date.getDate()).padStart(2, '0');
+        }
+
+        if (!map[key]) map[key] = { sum: 0, count: 0 };
+
+        map[key].sum += d.level;
+        map[key].count += 1;
+    });
+
+    // Convert map to sorted arrays
+    const labels = [];
+    const avgData = [];
+
+    Object.keys(map).sort().forEach(key => {
+        labels.push(new Date(key));
+        avgData.push(map[key].sum / map[key].count);
+    });
+
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = avgData;
+    chart.update();
+}
 
   // Update vertical charts in real time
   updateVerticalChartRealtime(chart1Day, data, 'hour');
