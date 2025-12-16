@@ -30,19 +30,11 @@
 
     button {
       padding: 8px 14px;
-      font-size: 14px;
       border-radius: 5px;
       border: none;
       cursor: pointer;
       background: #2563eb;
       color: white;
-    }
-
-    button:hover { background: #1d4ed8; }
-
-    .status {
-      font-size: 13px;
-      color: #bbbbbb;
     }
 
     .container {
@@ -89,7 +81,7 @@
 
 <div class="top-bar">
   <button onclick="requestNotificationPermission()">🔔 Enable Alerts</button>
-  <div class="status" id="notifStatus">Notifications: unknown</div>
+  <div id="notifStatus"></div>
 </div>
 
 <div class="container">
@@ -112,62 +104,34 @@
 =========================== */
 const ALERT_LEVEL = 500;
 let notified = false;
-const notifStatus = document.getElementById("notifStatus");
 
-function updateNotifStatus() {
-  notifStatus.textContent = "Notifications: " + Notification.permission;
+function requestNotificationPermission() {
+  Notification.requestPermission();
 }
-
-async function requestNotificationPermission() {
-  await Notification.requestPermission();
-  updateNotifStatus();
-}
-
-updateNotifStatus();
 
 /* ===========================
    MAIN CHART
 =========================== */
-const waterChart = new Chart(
-  document.getElementById('waterChart'),
-  {
-    type: 'line',
-    data: {
-      datasets: [{
-        label: 'Water Level',
-        data: [],
-        borderColor: '#4cafeb',
-        tension: 0,
-        pointRadius: 3,
-        pointHoverRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      scales: {
-        x: { type: 'time', grid: { drawTicks: false } },
-        y: { grid: { color: '#2a2e3b' } }
-      }
-    },
-    plugins: [{
-      id: 'thresholdLine',
-      afterDraw: chart => {
-        const y = chart.scales.y.getPixelForValue(ALERT_LEVEL);
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.setLineDash([6,4]);
-        ctx.strokeStyle = 'red';
-        ctx.beginPath();
-        ctx.moveTo(chart.chartArea.left, y);
-        ctx.lineTo(chart.chartArea.right, y);
-        ctx.stroke();
-        ctx.restore();
-      }
+const waterChart = new Chart(document.getElementById('waterChart'), {
+  type: 'line',
+  data: {
+    datasets: [{
+      label: 'Water Level',
+      data: [],
+      borderColor: '#4cafeb',
+      pointRadius: 3
     }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    scales: {
+      x: { type: 'time' },
+      y: { grid: { color: '#2a2e3b' } }
+    }
   }
-);
+});
 
 /* ===========================
    SMALL CHART FACTORY
@@ -175,7 +139,15 @@ const waterChart = new Chart(
 function createSmallChart(id, unit) {
   return new Chart(document.getElementById(id), {
     type: 'line',
-    data: { datasets: [{ data: [], borderColor: '#4cafeb', pointRadius: 2, tension: 0.35 }] },
+    data: {
+      datasets: [{
+        data: [],
+        borderColor: '#4cafeb',
+        tension: 0.35,
+        pointRadius: 2,
+        pointHoverRadius: 4
+      }]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -196,33 +168,59 @@ const chart1Month = createSmallChart('chart1Month', 'day');
 const chart1Year  = createSmallChart('chart1Year', 'month');
 
 /* ===========================
-   DATA GROUPING
+   LIVE BUCKET STATE
 =========================== */
-function groupData(data, days, unit) {
-  const now = Date.now();
-  const buckets = new Map();
+const liveBuckets = {
+  '1d': new Map(),
+  '3d': new Map(),
+  '1w': new Map(),
+  '1m': new Map(),
+  '1y': new Map()
+};
+
+/* ===========================
+   LIVE BUCKET UPDATER
+=========================== */
+function updateLiveBuckets(data, cfg) {
+  const { map, span, unit } = cfg;
+  const now = new Date();
+
+  let current;
+  if (unit === 'hour')
+    current = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
+  else if (unit === 'day')
+    current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  else
+    current = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const step =
+    unit === 'hour' ? 3600000 :
+    unit === 'day'  ? 86400000 :
+                      2592000000;
+
+  if (map.size === 0) {
+    for (let i = span; i >= 0; i--) {
+      map.set(+new Date(current.getTime() - i * step), []);
+    }
+  }
+
+  map.set(+current, []);
 
   data.forEach(d => {
     const t = new Date(d.timestamp);
-    if ((now - t) / 86400000 > days) return;
-
-    let key;
-    if (unit === 'hour') key = new Date(t.getFullYear(), t.getMonth(), t.getDate(), t.getHours());
-    else if (unit === 'day') key = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-    else key = new Date(t.getFullYear(), t.getMonth(), 1);
-
-    if (!buckets.has(+key)) buckets.set(+key, []);
-    buckets.get(+key).push(d.level);
+    if (t >= current && t < new Date(current.getTime() + step)) {
+      map.get(+current).push(d.level);
+    }
   });
 
-  return [...buckets.entries()].map(([x, arr]) => ({
+  return [...map.entries()].map(([x, arr]) => ({
     x: new Date(+x),
-    y: arr.reduce((a,b)=>a+b)/arr.length
+    y: arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
   }));
 }
 
 /* ===========================
-   FETCH + UPDATE (1 SECOND)
+   FETCH LOOP (1 SECOND)
 =========================== */
 async function fetchData() {
   const res = await fetch('/api/water-level');
@@ -233,11 +231,20 @@ async function fetchData() {
     recent.map(d => ({ x: new Date(d.timestamp), y: d.level }));
   waterChart.update('none');
 
-  chart1Day.data.datasets[0].data   = groupData(data, 1, 'hour');
-  chart3Days.data.datasets[0].data = groupData(data, 3, 'day');
-  chart1Week.data.datasets[0].data = groupData(data, 7, 'day');
-  chart1Month.data.datasets[0].data= groupData(data, 30, 'day');
-  chart1Year.data.datasets[0].data = groupData(data, 365, 'month');
+  chart1Day.data.datasets[0].data =
+    updateLiveBuckets(data, { map: liveBuckets['1d'], span: 24, unit: 'hour' });
+
+  chart3Days.data.datasets[0].data =
+    updateLiveBuckets(data, { map: liveBuckets['3d'], span: 3, unit: 'day' });
+
+  chart1Week.data.datasets[0].data =
+    updateLiveBuckets(data, { map: liveBuckets['1w'], span: 7, unit: 'day' });
+
+  chart1Month.data.datasets[0].data =
+    updateLiveBuckets(data, { map: liveBuckets['1m'], span: 30, unit: 'day' });
+
+  chart1Year.data.datasets[0].data =
+    updateLiveBuckets(data, { map: liveBuckets['1y'], span: 12, unit: 'month' });
 
   chart1Day.update('none');
   chart3Days.update('none');
@@ -246,13 +253,11 @@ async function fetchData() {
   chart1Year.update('none');
 
   const latest = recent.at(-1);
-  if (!latest) return;
-
-  if (latest.level > ALERT_LEVEL && !notified && Notification.permission === "granted") {
-    new Notification("⚠ Water Level Alert", { body: `Level is ${latest.level}` });
+  if (latest && latest.level > ALERT_LEVEL && !notified && Notification.permission === "granted") {
+    new Notification("⚠ Water Level Alert", { body: `Level: ${latest.level}` });
     notified = true;
   }
-  if (latest.level <= ALERT_LEVEL) notified = false;
+  if (latest && latest.level <= ALERT_LEVEL) notified = false;
 }
 
 setInterval(fetchData, 1000);
