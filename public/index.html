@@ -96,6 +96,21 @@
       }
     });
 
+      <script>
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    alert("This browser does not support notifications.");
+    return;
+  }
+
+  if (Notification.permission === "default") {
+    await Notification.requestPermission();
+  }
+}
+
+requestNotificationPermission();
+</script>
+
     // Side charts
     function createSmallChart(canvasId) {
       const ctx = document.getElementById(canvasId).getContext('2d');
