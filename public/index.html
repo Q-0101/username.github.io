@@ -7,39 +7,18 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
   <style>
-    body { font-family: Arial; margin: 20px; }
-    h1 { color: #333; text-align: center; margin-bottom: 10px; }
-
-    .container { display: flex; gap: 20px; }
-
-    .main-chart { flex: 3; height: 600px; }
-    .side-charts {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      height: 600px;
+    /* TradingView Dark Mode Style */
+    body {
+      font-family: Arial;
+      margin: 20px;
+      background-color: #131722; /* dark background */
+      color: #e0e0e0;           /* light text */
     }
 
-    .side-charts > div {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-    canvas {
-      background: #f9f9f9;
-      padding: 10px;
-      border-radius: 8px;
-      width: 100%;
-      flex: 1;
-    }
-
-    .chart-title {
+    h1 {
+      color: #ffffff;
       text-align: center;
-      font-size: 14px;
-      margin-bottom: 5px;
+      margin-bottom: 10px;
     }
 
     .top-bar {
@@ -60,11 +39,59 @@
       color: white;
     }
 
-    button:hover { background: #1d4ed8; }
+    button:hover { 
+      background: #1d4ed8; 
+    }
 
     .status {
       font-size: 13px;
-      color: #555;
+      color: #bbbbbb;
+    }
+
+    /* Container for main and side charts */
+    .container { 
+      display: flex; 
+      gap: 20px; 
+      align-items: flex-start; /* container top aligned */
+    }
+
+    .main-chart { 
+      flex: 3; 
+      height: 600px; 
+    }
+
+    .side-charts {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    /* Small charts alignment */
+    .side-charts > div {
+      height: 100px; /* fixed small chart height */
+      display: flex;
+      flex-direction: column;
+      margin-top: auto; /* push charts upward to align bottoms */
+    }
+
+    .side-charts > div + div {
+      margin-top: 10px; /* spacing between small charts */
+    }
+
+    canvas {
+      background: #1e2330; /* chart background darker than page */
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      flex: 1;
+    }
+
+    .chart-title {
+      text-align: center;
+      font-size: 14px;
+      margin-bottom: 5px;
+      color: #ffffff;
     }
   </style>
 </head>
@@ -128,42 +155,102 @@
     }
 
     const mainCtx = document.getElementById('waterChart').getContext('2d');
+
     const waterChart = new Chart(mainCtx, {
       type: 'line',
       data: {
         labels: [],
-        datasets: [{
-          label: 'Water Level',
-          data: [],
-          borderColor: 'blue',
-          fill: false,
-          tension: 0
-        }]
+        datasets: [
+          {
+            label: 'Water Level',
+            data: [],
+            borderColor: '#4cafeb',
+            fill: false,
+            tension: 0,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#4cafeb',
+            pointHoverBackgroundColor: 'white',
+            pointBorderColor: '#4cafeb',
+            pointHoverBorderColor: '#4cafeb'
+          },
+          {
+            label: 'Threshold',
+            data: [], // empty; used only for legend
+            borderColor: 'red',
+            borderDash: [6,4],
+            fill: false,
+            pointRadius: 0
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        plugins: {
+          legend: { labels: { color: '#ffffff' } },
+          tooltip: {
+            enabled: true,
+            mode: 'nearest',
+            intersect: false,
+            backgroundColor: '#2a2e3b',
+            titleColor: '#ffffff',
+            bodyColor: '#ffffff',
+            padding: 10,
+            cornerRadius: 4
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          intersect: false
+        },
         scales: {
           x: {
             type: 'time',
-            title: { display: true, text: 'Time' },
-            time: { tooltipFormat: 'HH:mm:ss', unit: 'minute' }
+            title: { display: true, text: 'Time', color: '#ffffff' },
+            ticks: { color: '#cccccc' },
+            grid: { color: '#1e2330', drawTicks: false } // vertical lines removed
           },
-          y: { title: { display: true, text: 'Level' } }
+          y: {
+            title: { display: true, text: 'Level', color: '#ffffff' },
+            ticks: { color: '#cccccc' },
+            grid: { color: '#2a2e3b' } // horizontal lines only
+          }
         }
-      }
+      },
+      plugins: [{
+        id: 'thresholdLine',
+        afterDraw: chart => {
+          const yValue = ALERT_LEVEL; // 500
+          const yScale = chart.scales.y;
+          const ctx = chart.ctx;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(chart.chartArea.left, yScale.getPixelForValue(yValue));
+          ctx.lineTo(chart.chartArea.right, yScale.getPixelForValue(yValue));
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'red';
+          ctx.setLineDash([6, 4]);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }]
     });
 
     function createSmallChart(id) {
       return new Chart(document.getElementById(id).getContext('2d'), {
         type: 'line',
-        data: { labels: [], datasets: [{ data: [], borderColor: 'green', fill: false }] },
+        data: { labels: [], datasets: [{ data: [], borderColor: '#4cafeb', fill: false }] },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { x: { display: false }, y: { display: true } }
+          scales: {
+            x: { display: false, grid: { drawTicks: false, drawOnChartArea: false } },
+            y: { display: true, ticks: { color: '#cccccc' }, grid: { color: '#2a2e3b' } }
+          }
         }
       });
     }
