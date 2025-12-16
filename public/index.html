@@ -7,11 +7,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
   <style>
+    /* TradingView Dark Mode Style */
     body {
       font-family: Arial;
       margin: 20px;
-      background-color: #131722;
-      color: #e0e0e0;
+      background-color: #131722; /* dark background */
+      color: #e0e0e0;           /* light text */
     }
 
     h1 {
@@ -30,6 +31,7 @@
 
     button {
       padding: 8px 14px;
+      font-size: 14px;
       border-radius: 5px;
       border: none;
       cursor: pointer;
@@ -37,34 +39,53 @@
       color: white;
     }
 
-    .container {
-      display: flex;
-      gap: 20px;
-      align-items: flex-start;
+    button:hover { 
+      background: #1d4ed8; 
     }
 
-    .main-chart {
-      flex: 3;
-      height: 600px;
+    .status {
+      font-size: 13px;
+      color: #bbbbbb;
+    }
+
+    /* Container for main and side charts */
+    .container { 
+      display: flex; 
+      gap: 20px; 
+      align-items: flex-start; /* container top aligned */
+    }
+
+    .main-chart { 
+      flex: 3; 
+      height: 600px; 
+      margin-right: 250px;
     }
 
     .side-charts {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    position: absolute;   /* take it out of normal flow */
+    top: 20px;            /* same as body margin or header bottom */
+    right: 20px;          /* distance from the right edge */
+    display: flex;
+    flex-direction: column;
+    gap: 40px;            /* spacing between small charts */
     }
 
+
+    /* Small charts alignment */
     .side-charts > div {
-      height: 100px;
-      margin-bottom: 10px;
+      height: 135px; /* fixed small chart height */
+      width: 230px;
+      display: flex;
+      flex-direction: column;
+      margin-top: auto; /* push charts upward to align bottoms */
     }
 
     canvas {
-      background: #1e2330;
+      background: #1e2330; /* chart background darker than page */
       padding: 10px;
       border-radius: 8px;
       width: 100%;
-      height: 100%;
+      flex: 1;
     }
 
     .chart-title {
@@ -77,192 +98,292 @@
 </head>
 <body>
 
-<h1>Water Sensor Dashboard</h1>
+  <h1>Water Sensor Dashboard</h1>
 
-<div class="top-bar">
-  <button onclick="requestNotificationPermission()">🔔 Enable Alerts</button>
-  <div id="notifStatus"></div>
-</div>
-
-<div class="container">
-  <div class="main-chart">
-    <canvas id="waterChart"></canvas>
+  <!-- 🔔 Notification controls -->
+  <div class="top-bar">
+    <button onclick="requestNotificationPermission()">🔔 Enable Alerts</button>
+    <div class="status" id="notifStatus">Notifications: unknown</div>
   </div>
 
-  <div class="side-charts">
-    <div><div class="chart-title">1 Day</div><canvas id="chart1Day"></canvas></div>
-    <div><div class="chart-title">3 Days</div><canvas id="chart3Days"></canvas></div>
-    <div><div class="chart-title">1 Week</div><canvas id="chart1Week"></canvas></div>
-    <div><div class="chart-title">1 Month</div><canvas id="chart1Month"></canvas></div>
-    <div><div class="chart-title">1 Year</div><canvas id="chart1Year"></canvas></div>
+  <div class="container">
+    <div class="main-chart">
+      <canvas id="waterChart"></canvas>
+    </div>
+
+    <div class="side-charts">
+      <div><div class="chart-title">1 Day Avg</div><canvas id="chart1Day"></canvas></div>
+      <div><div class="chart-title">1 Week Avg</div><canvas id="chart1Week"></canvas></div>
+      <div><div class="chart-title">1 Month Avg</div><canvas id="chart1Month"></canvas></div>
+      <div><div class="chart-title">1 Year Avg</div><canvas id="chart1Year"></canvas></div>
+    </div>
   </div>
-</div>
 
-<script>
-/* ===========================
-   NOTIFICATIONS
-=========================== */
-const ALERT_LEVEL = 500;
-let notified = false;
+  <script>
+    /* ===========================
+       NOTIFICATION LOGIC
+    ============================ */
+    const ALERT_LEVEL = 500;
+    let notified = false;
+    const notifStatus = document.getElementById("notifStatus");
 
-function requestNotificationPermission() {
-  Notification.requestPermission();
-}
-
-/* ===========================
-   MAIN CHART
-=========================== */
-const waterChart = new Chart(document.getElementById('waterChart'), {
-  type: 'line',
-  data: {
-    datasets: [{
-      label: 'Water Level',
-      data: [],
-      borderColor: '#4cafeb',
-      pointRadius: 3
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    scales: {
-      x: { type: 'time' },
-      y: { grid: { color: '#2a2e3b' } }
+    function updateNotifStatus() {
+      if (!("Notification" in window)) {
+        notifStatus.textContent = "Notifications not supported";
+        return;
+      }
+      notifStatus.textContent = "Notifications: " + Notification.permission;
     }
-  }
-});
 
-/* ===========================
-   SMALL CHART FACTORY
-=========================== */
-function createSmallChart(id, unit) {
-  return new Chart(document.getElementById(id), {
-    type: 'line',
-    data: {
-      datasets: [{
-        data: [],
-        borderColor: '#4cafeb',
-        tension: 0.35,
-        pointRadius: 2,
-        pointHoverRadius: 4
+    async function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        alert("Notifications not supported");
+        return;
+      }
+      await Notification.requestPermission();
+      updateNotifStatus();
+    }
+
+    updateNotifStatus();
+
+    /* ===========================
+       CHART LOGIC
+    ============================ */
+    function avg(data) {
+      if (!data.length) return 0;
+      return (data.reduce((a, b) => a + b, 0) / data.length).toFixed(2);
+    }
+
+    const mainCtx = document.getElementById('waterChart').getContext('2d');
+
+    const waterChart = new Chart(mainCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Water Level',
+            data: [],
+            borderColor: '#4cafeb',
+            fill: false,
+            tension: 0,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#4cafeb',
+            pointHoverBackgroundColor: 'white',
+            pointBorderColor: '#4cafeb',
+            pointHoverBorderColor: '#4cafeb'
+          },
+          {
+            label: 'Threshold',
+            data: [], // empty; used only for legend
+            borderColor: 'red',
+            borderDash: [6,4],
+            fill: false,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { labels: { color: '#ffffff' } },
+          tooltip: {
+            enabled: true,
+            mode: 'nearest',
+            intersect: false,
+            backgroundColor: '#2a2e3b',
+            titleColor: '#ffffff',
+            bodyColor: '#ffffff',
+            padding: 10,
+            cornerRadius: 4
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          intersect: false
+        },
+        scales: {
+          x: {
+            type: 'time',
+            title: { display: true, text: 'Time', color: '#ffffff' },
+            ticks: { color: '#cccccc' },
+            grid: { color: '#1e2330', drawTicks: false } // vertical lines removed
+          },
+          y: {
+            title: { display: true, text: 'Level', color: '#ffffff' },
+            ticks: { color: '#cccccc' },
+            grid: { color: '#2a2e3b' } // horizontal lines only
+          }
+        }
+      },
+      plugins: [{
+        id: 'thresholdLine',
+        afterDraw: chart => {
+          const yValue = ALERT_LEVEL; // 500
+          const yScale = chart.scales.y;
+          const ctx = chart.ctx;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(chart.chartArea.left, yScale.getPixelForValue(yValue));
+          ctx.lineTo(chart.chartArea.right, yScale.getPixelForValue(yValue));
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'red';
+          ctx.setLineDash([6, 4]);
+          ctx.stroke();
+          ctx.restore();
+        }
       }]
-    },
+    });
+
+    function createVerticalChart(canvasId, options = {}) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+
+  return new Chart(ctx, {
+    type: 'line',
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { labels: { color: '#ffffff' } },
+        tooltip: {
+          enabled: true,
+          mode: 'nearest',
+          intersect: false,
+          backgroundColor: '#2a2e3b',
+          titleColor: '#ffffff',
+          bodyColor: '#ffffff',
+          padding: 10,
+          cornerRadius: 4
+        }
+      },
+      interaction: {
+        mode: 'nearest',
+        intersect: false
+      },
       scales: {
-        x: { type: 'time', time: { unit }, display: false },
-        y: { grid: { color: '#2a2e3b' } }
+        x: {
+          type: 'time',
+          title: { display: true, text: options.xTitle || '', color: '#ffffff' },
+          ticks: { color: '#cccccc' },
+          grid: { color: '#1e2330', drawTicks: false }
+        },
+        y: {
+          title: { display: true, text: options.yTitle || '', color: '#ffffff' },
+          ticks: { color: '#cccccc' },
+          grid: { color: '#2a2e3b' }
+        }
       }
-    }
+    },
+    plugins: options.threshold ? [{
+      id: 'thresholdLine',
+      afterDraw: chart => {
+        const yValue = options.threshold;
+        const yScale = chart.scales.y;
+        const ctx = chart.ctx;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(chart.chartArea.left, yScale.getPixelForValue(yValue));
+        ctx.lineTo(chart.chartArea.right, yScale.getPixelForValue(yValue));
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'red';
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }] : []
   });
 }
 
-const chart1Day   = createSmallChart('chart1Day', 'hour');
-const chart3Days  = createSmallChart('chart3Days', 'day');
-const chart1Week  = createSmallChart('chart1Week', 'day');
-const chart1Month = createSmallChart('chart1Month', 'day');
-const chart1Year  = createSmallChart('chart1Year', 'month');
 
-/* ===========================
-   LIVE BUCKET STATE
-=========================== */
-const liveBuckets = {
-  '1d': new Map(),
-  '3d': new Map(),
-  '1w': new Map(),
-  '1m': new Map(),
-  '1y': new Map()
-};
+    const chart1Day = createVerticalChart('chart1Day');
+    const chart1Week = createVerticalChart('chart1Week');
+    const chart1Month = createVerticalChart('chart1Month');
+    const chart1Year = createVerticalChart('chart1Year');
 
-/* ===========================
-   LIVE BUCKET UPDATER
-=========================== */
-function updateLiveBuckets(data, cfg) {
-  const { map, span, unit } = cfg;
-  const now = new Date();
-
-  let current;
-  if (unit === 'hour')
-    current = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
-  else if (unit === 'day')
-    current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  else
-    current = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const step =
-    unit === 'hour' ? 3600000 :
-    unit === 'day'  ? 86400000 :
-                      2592000000;
-
-  if (map.size === 0) {
-    for (let i = span; i >= 0; i--) {
-      map.set(+new Date(current.getTime() - i * step), []);
-    }
-  }
-
-  map.set(+current, []);
-
-  data.forEach(d => {
-    const t = new Date(d.timestamp);
-    if (t >= current && t < new Date(current.getTime() + step)) {
-      map.get(+current).push(d.level);
-    }
-  });
-
-  return [...map.entries()].map(([x, arr]) => ({
-    x: new Date(+x),
-    y: arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
-  }));
-}
-
-/* ===========================
-   FETCH LOOP (1 SECOND)
-=========================== */
-async function fetchData() {
-  const res = await fetch('/api/water-level');
+    async function fetchData() {
+     const res = await fetch('/api/water-level');
   const data = await res.json();
 
-  const recent = data.slice(-100);
-  waterChart.data.datasets[0].data =
-    recent.map(d => ({ x: new Date(d.timestamp), y: d.level }));
-  waterChart.update('none');
+  // Update main chart
+  waterChart.data.labels = data.map(d => new Date(d.timestamp));
+  waterChart.data.datasets[0].data = data.map(d => d.level);
+  waterChart.update();
 
-  chart1Day.data.datasets[0].data =
-    updateLiveBuckets(data, { map: liveBuckets['1d'], span: 24, unit: 'hour' });
+  // Update vertical charts in real time
+  updateVerticalChartRealtime(chart1Day, data, 'hour');
+  updateVerticalChartRealtime(chart1Week, data, 'hour');
+  updateVerticalChartRealtime(chart1Month, data, 'daily');
+  updateVerticalChartRealtime(chart1Year, data, 'daily');
 
-  chart3Days.data.datasets[0].data =
-    updateLiveBuckets(data, { map: liveBuckets['3d'], span: 3, unit: 'day' });
 
-  chart1Week.data.datasets[0].data =
-    updateLiveBuckets(data, { map: liveBuckets['1w'], span: 7, unit: 'day' });
+      const now = new Date();
+      const filterByDays = d =>
+        data.filter(x => (now - new Date(x.timestamp)) / 86400000 <= d)
+            .map(x => x.level);
 
-  chart1Month.data.datasets[0].data =
-    updateLiveBuckets(data, { map: liveBuckets['1m'], span: 30, unit: 'day' });
+      chart1Day.data.datasets[0].data = [avg(filterByDays(1))]; chart1Day.update();
+      chart3Days.data.datasets[0].data = [avg(filterByDays(3))]; chart3Days.update();
+      chart1Week.data.datasets[0].data = [avg(filterByDays(7))]; chart1Week.update();
+      chart1Month.data.datasets[0].data = [avg(filterByDays(30))]; chart1Month.update();
+      chart1Year.data.datasets[0].data = [avg(filterByDays(365))]; chart1Year.update();
 
-  chart1Year.data.datasets[0].data =
-    updateLiveBuckets(data, { map: liveBuckets['1y'], span: 12, unit: 'month' });
+      /* 🔔 ALERT CHECK */
+      const latest = recent[recent.length - 1];
+      if (!latest) return;
 
-  chart1Day.update('none');
-  chart3Days.update('none');
-  chart1Week.update('none');
-  chart1Month.update('none');
-  chart1Year.update('none');
+      if (latest.level > ALERT_LEVEL) {
+        if (!notified && Notification.permission === "granted") {
+          new Notification("⚠ Water Level Alert", {
+            body: `Level is ${latest.level}`
+          });
+          notified = true;
+        }
+      } else {
+        notified = false;
+      }
+    }
 
-  const latest = recent.at(-1);
-  if (latest && latest.level > ALERT_LEVEL && !notified && Notification.permission === "granted") {
-    new Notification("⚠ Water Level Alert", { body: `Level: ${latest.level}` });
-    notified = true;
-  }
-  if (latest && latest.level <= ALERT_LEVEL) notified = false;
+    function updateVerticalChartRealtime(chart, data, interval = 'hour') {
+  const avgValue = computeCurrentBucketAverage(data, interval);
+
+  // Current timestamp for X-axis
+  const now = new Date();
+  chart.data.labels = [now];  
+  chart.data.datasets[0].data = [avgValue];
+  chart.update();
 }
 
-setInterval(fetchData, 1000);
-fetchData();
-</script>
+function computeCurrentBucketAverage(data, interval = 'hour') {
+  const now = new Date();
 
+  // Determine start of current interval
+  let start;
+  if (interval === 'hour') {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
+  } else if (interval === 'day') {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  // Filter only data within current interval
+  const bucketData = data.filter(d => new Date(d.timestamp) >= start);
+
+  // Compute average
+  const avgValue = bucketData.length
+    ? bucketData.reduce((sum, x) => sum + x.level, 0) / bucketData.length
+    : 0;
+
+  return avgValue.toFixed(2);
+}
+
+
+    setInterval(fetchData, 1000)
+    fetchData();
+  </script>
 </body>
 </html>
