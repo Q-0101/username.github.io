@@ -350,14 +350,36 @@
     }
 
     function updateVerticalChartRealtime(chart, data, interval = 'hour') {
-  const avgValue = computeCurrentBucketAverage(data, interval);
-
-  // Current timestamp for X-axis
   const now = new Date();
-  chart.data.labels = [now];  
-  chart.data.datasets[0].data = [avgValue];
-  chart.update();
+
+  // Determine the start of the interval
+  let start;
+  if (interval === 'hour') {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
+  } else if (interval === 'day') {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  // Filter data within current interval
+  const bucketData = data.filter(d => new Date(d.timestamp) >= start);
+
+  // Compute average
+  const avgValue = bucketData.length
+    ? bucketData.reduce((sum, x) => sum + x.level, 0) / bucketData.length
+    : 0;
+
+  // Only add a new point when the **minute changes**
+  const lastLabel = chart.data.labels[chart.data.labels.length - 1];
+  const lastMinute = lastLabel ? new Date(lastLabel).getMinutes() : null;
+
+  if (lastMinute !== now.getMinutes()) {
+    // append new point
+    chart.data.labels.push(now);
+    chart.data.datasets[0].data.push(avgValue);
+    chart.update();
+  }
 }
+
 
 function computeCurrentBucketAverage(data, interval = 'hour') {
   const now = new Date();
