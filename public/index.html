@@ -239,12 +239,12 @@
       }]
     });
 
-    function createVerticalChart(canvasId) {
+    function createVerticalChart(canvasId, options = {}) {
   const ctx = document.getElementById(canvasId).getContext('2d');
 
   return new Chart(ctx, {
     type: 'line',
-      data: {
+    data: {
         labels: [],
         datasets: [
           {
@@ -260,69 +260,61 @@
             pointBorderColor: '#4cafeb',
             pointHoverBorderColor: '#4cafeb'
           },
-          {
-            label: 'Threshold',
-            data: [], // empty; used only for legend
-            borderColor: 'red',
-            borderDash: [6,4],
-            fill: false,
-            pointRadius: 0
-          }
         ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: {
-          legend: { labels: { color: '#ffffff' } },
-          tooltip: {
-            enabled: true,
-            mode: 'nearest',
-            intersect: false,
-            backgroundColor: '#2a2e3b',
-            titleColor: '#ffffff',
-            bodyColor: '#ffffff',
-            padding: 10,
-            cornerRadius: 4
-          }
-        },
-        interaction: {
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { labels: { color: '#ffffff' } },
+        tooltip: {
+          enabled: true,
           mode: 'nearest',
-          intersect: false
-        },
-        scales: {
-          x: {
-            type: 'time',
-            title: { display: true, text: 'Time', color: '#ffffff' },
-            ticks: { color: '#cccccc' },
-            grid: { color: '#1e2330', drawTicks: false } // vertical lines removed
-          },
-          y: {
-            title: { display: true, text: 'Level', color: '#ffffff' },
-            ticks: { color: '#cccccc' },
-            grid: { color: '#2a2e3b' } // horizontal lines only
-          }
+          intersect: false,
+          backgroundColor: '#2a2e3b',
+          titleColor: '#ffffff',
+          bodyColor: '#ffffff',
+          padding: 10,
+          cornerRadius: 4
         }
       },
-      plugins: [{
-        id: 'thresholdLine',
-        afterDraw: chart => {
-          const yValue = ALERT_LEVEL; // 500
-          const yScale = chart.scales.y;
-          const ctx = chart.ctx;
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(chart.chartArea.left, yScale.getPixelForValue(yValue));
-          ctx.lineTo(chart.chartArea.right, yScale.getPixelForValue(yValue));
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = 'red';
-          ctx.setLineDash([6, 4]);
-          ctx.stroke();
-          ctx.restore();
+      interaction: {
+        mode: 'nearest',
+        intersect: false
+      },
+      scales: {
+        x: {
+          type: 'time',
+          title: { display: true, text: options.xTitle || '', color: '#ffffff' },
+          ticks: { color: '#cccccc' },
+          grid: { color: '#1e2330', drawTicks: false }
+        },
+        y: {
+          title: { display: true, text: options.yTitle || '', color: '#ffffff' },
+          ticks: { color: '#cccccc' },
+          grid: { color: '#2a2e3b' }
         }
-      }]
+      }
+    },
+    plugins: options.threshold ? [{
+      id: 'thresholdLine',
+      afterDraw: chart => {
+        const yValue = options.threshold;
+        const yScale = chart.scales.y;
+        const ctx = chart.ctx;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(chart.chartArea.left, yScale.getPixelForValue(yValue));
+        ctx.lineTo(chart.chartArea.right, yScale.getPixelForValue(yValue));
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'red';
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }] : []
   });
 }
 
@@ -335,15 +327,15 @@
      const res = await fetch('/api/water-level');
      const data = await res.json();
 
-    waterChart.data.labels = data.map(d => new Date(d.timestamp));
-    waterChart.data.datasets[0].data = data.map(d => d.level);
-    waterChart.update();
+  waterChart.data.labels = data.map(d => new Date(d.timestamp));
+  waterChart.data.datasets[0].data = data.map(d => d.level);
+  waterChart.update();
 
-    // Update vertical charts in real time
-    updateVerticalChartRealtime(chart1Day, data, 'hour');
-    updateVerticalChartRealtime(chart1Week, data, 'hour');
-    updateVerticalChartRealtime(chart1Month, data, 'day');
-    updateVerticalChartRealtime(chart1Year, data, 'day');
+  // Update vertical charts in real time
+  updateVerticalChartRealtime(chart1Day, data, 'hour');
+  updateVerticalChartRealtime(chart1Week, data, 'hour');
+  updateVerticalChartRealtime(chart1Month, data, 'day');
+  updateVerticalChartRealtime(chart1Year, data, 'day');
 
 
       const now = new Date();
