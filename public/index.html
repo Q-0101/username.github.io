@@ -331,11 +331,11 @@
   waterChart.data.datasets[0].data = data.map(d => d.level);
   waterChart.update();
 
-  updateChartWithAggregatedDataLive(chart1Day, data, 'hour')
-  updateChartWithAggregatedDataLive(chart1Week, data, 'hour')
+  updateHourlyChart(chart1Day, data)
+  updateHourlyChart(chart1Week, data)
   updateChartWithAggregatedDataLive(chart1Month, data, 'day')
   updateChartWithAggregatedDataLive(chart1Year, data, 'day')
-  
+
       const now = new Date();
       const filterByDays = d =>
         data.filter(x => (now - new Date(x.timestamp)) / 86400000 <= d)
@@ -357,54 +357,37 @@
       }
     }
 
-    function updateChartWithAggregatedDataLive(chart, data, mode) {
-    const map = {};
+    function updateHourlyChart(chart, rawData) {
+    // Step 1: Group data by hour
+    const hourlyData = {}; // { '2025-12-17T06:00': [5.4, 5.6], ... }
 
-    // Include existing chart data in the map so ongoing buckets can update
-    if (chart.data.labels.length && chart.data.datasets[0].data.length) {
-        for (let i = 0; i < chart.data.labels.length; i++) {
-            const label = chart.data.labels[i];
-            const value = chart.data.datasets[0].data[i];
-            map[label.toISOString().slice(0, mode === 'hour' ? 13 : 10)] = { sum: value, count: 1 }; 
-            // Using count=1 as placeholder, we'll recompute properly below
-        }
-    }
-
-    // Aggregate new data points
-    data.forEach(d => {
+    rawData.forEach(d => {
         const date = new Date(d.timestamp);
-        let key;
+        // Create a string like 'YYYY-MM-DD HH:00' to represent the hour
+        const hourKey = `${date.getFullYear()}-${(date.getMonth()+1)
+            .toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} ${date.getHours().toString().padStart(2,'0')}:00`;
 
-        if (mode === 'hour') {
-            key = date.getFullYear() + '-' +
-                  String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                  String(date.getDate()).padStart(2, '0') + 'T' +
-                  String(date.getHours()).padStart(2, '0');
-        } else {
-            key = date.getFullYear() + '-' +
-                  String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                  String(date.getDate()).padStart(2, '0');
-        }
-
-        if (!map[key]) map[key] = { sum: 0, count: 0 };
-
-        map[key].sum += d.level;
-        map[key].count += 1;
+        if (!hourlyData[hourKey]) hourlyData[hourKey] = [];
+        hourlyData[hourKey].push(d.level);
     });
 
-    // Convert map to sorted arrays
+    // Step 2: Compute averages for each hour
     const labels = [];
-    const avgData = [];
+    const dataPoints = [];
 
-    Object.keys(map).sort().forEach(key => {
-        labels.push(new Date(key));
-        avgData.push(map[key].sum / map[key].count);
+    Object.keys(hourlyData).sort().forEach(hour => {
+        const levels = hourlyData[hour];
+        const avg = levels.reduce((a,b) => a+b, 0) / levels.length;
+        labels.push(new Date(hour)); // Chart.js accepts Date objects
+        dataPoints.push(avg);
     });
 
+    // Step 3: Update chart
     chart.data.labels = labels;
-    chart.data.datasets[0].data = avgData;
+    chart.data.datasets[0].data = dataPoints;
     chart.update();
 }
+
 
     setInterval(fetchData, 1000)
     fetchData();
