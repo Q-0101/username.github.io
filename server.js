@@ -8,12 +8,11 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('public')); // serve frontend
+app.use(express.static('public'));
 
 let waterData = [];
-const MAX_READINGS = 2000; // store more readings for scrolling
+const MAX_READINGS = 2000;
 
-// Arduino POST
 app.post('/api/water-level', (req, res) => {
   const { level } = req.body;
   if (level === undefined) return res.status(400).send('Missing level');
@@ -26,7 +25,6 @@ app.post('/api/water-level', (req, res) => {
   res.send({ success: true });
 });
 
-// Frontend GET
 app.get('/api/water-level', (req, res) => {
   res.json(waterData);
 });
@@ -36,3 +34,4 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
