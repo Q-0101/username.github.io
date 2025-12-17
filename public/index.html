@@ -286,12 +286,13 @@
       scales: {
         x: {
           type: 'time',
-          title: { display: true, text: options.xTitle || '', color: '#ffffff' },
-          ticks: { color: '#cccccc' },
+          title: { display: false, text: options.xTitle || '', color: '#ffffff' },
+          ticks: { display: false, color: '#cccccc' },
           grid: { color: '#1e2330', drawTicks: false }
+          
         },
         y: {
-          title: { display: true, text: options.yTitle || '', color: '#ffffff' },
+          title: { display: false, text: options.yTitle || '', color: '#ffffff' },
           ticks: { color: '#cccccc' },
           grid: { color: '#2a2e3b' }
         }
@@ -331,10 +332,10 @@
   waterChart.data.datasets[0].data = data.map(d => d.level);
   waterChart.update();
 
-  updateHourlyChart(chart1Day, data)
-  updateHourlyChart(chart1Week, data)
-  updateChartWithAggregatedDataLive(chart1Month, data, 'day')
-  updateChartWithAggregatedDataLive(chart1Year, data, 'day')
+  updateTimeAggregatedChart(chart1Day, data, 'hourly')
+  updateTimeAggregatedChart(chart1Week, data, 'daily')
+  updateTimeAggregatedChart(chart1Month, data, 'monthly')
+  updateTimeAggregatedChart(chart1Year, data, 'yearly')
 
       const now = new Date();
       const filterByDays = d =>
@@ -357,28 +358,48 @@
       }
     }
 
-    function updateHourlyChart(chart, rawData) {
-    // Step 1: Group data by hour
-    const hourlyData = {}; // { '2025-12-17T06:00': [5.4, 5.6], ... }
+    function updateTimeAggregatedChart(chart, rawData, mode = 'hourly') {
+    // Step 1: Group data by selected mode
+    const aggregatedData = {}; // { key: [values] }
 
     rawData.forEach(d => {
         const date = new Date(d.timestamp);
-        // Create a string like 'YYYY-MM-DD HH:00' to represent the hour
-        const hourKey = `${date.getFullYear()}-${(date.getMonth()+1)
-            .toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} ${date.getHours().toString().padStart(2,'0')}:00`;
+        let key;
 
-        if (!hourlyData[hourKey]) hourlyData[hourKey] = [];
-        hourlyData[hourKey].push(d.level);
+        switch(mode) {
+            case 'hourly':
+                key = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} ${date.getHours().toString().padStart(2,'0')}:00`;
+                break;
+            case 'daily':
+                key = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')}`;
+                break;
+            case 'monthly':
+                key = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}`;
+                break;
+            case 'yearly':
+                key = `${date.getFullYear()}`;
+                break;
+            default:
+                throw new Error("Invalid mode: use 'hourly', 'daily', 'monthly', or 'yearly'");
+        }
+
+        if (!aggregatedData[key]) aggregatedData[key] = [];
+        aggregatedData[key].push(d.level);
     });
 
-    // Step 2: Compute averages for each hour
+    // Step 2: Compute averages
     const labels = [];
     const dataPoints = [];
 
-    Object.keys(hourlyData).sort().forEach(hour => {
-        const levels = hourlyData[hour];
-        const avg = levels.reduce((a,b) => a+b, 0) / levels.length;
-        labels.push(new Date(hour)); // Chart.js accepts Date objects
+    Object.keys(aggregatedData).sort().forEach(key => {
+        const values = aggregatedData[key];
+        const avg = values.reduce((a,b) => a + b, 0) / values.length;
+
+        // For hourly mode, convert key back to Date object for Chart.js time scale
+        if (mode === 'hourly') labels.push(new Date(key));
+        else if (mode === 'daily') labels.push(new Date(key)); // also works with time axis
+        else labels.push(key); // monthly and yearly can remain as strings
+
         dataPoints.push(avg);
     });
 
@@ -387,6 +408,8 @@
     chart.data.datasets[0].data = dataPoints;
     chart.update();
 }
+
+
 
 
     setInterval(fetchData, 1000)
