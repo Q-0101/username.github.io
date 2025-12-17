@@ -326,10 +326,11 @@
     async function fetchData() {
      const res = await fetch('/api/water-level');   
      const data = await res.json();
+     const mainData = data.slice(-100);
 
-  waterChart.data.labels = data.map(d => new Date(d.timestamp));
-  waterChart.data.datasets[0].data = data.map(d => d.level);
-  waterChart.update();
+    waterChart.data.labels = mainData.map(d => new Date(d.timestamp));
+    waterChart.data.datasets[0].data = mainData.map(d => d.level);
+    waterChart.update();
 
   updateTimeAggregatedChart(chart1Day, data, 'hourly')
   updateTimeAggregatedChart(chart1Week, data, 'daily')
