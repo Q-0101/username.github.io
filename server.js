@@ -11,7 +11,6 @@ app.use(bodyParser.json());
 app.use(express.static('public'));
 
 let waterData = [];
-const MAX_READINGS = 2000;
 
 app.post('/api/water-level', (req, res) => {
   const { level } = req.body;
@@ -19,8 +18,6 @@ app.post('/api/water-level', (req, res) => {
 
   const timestamp = new Date().toISOString();
   waterData.push({ timestamp, level });
-
-  if (waterData.length > MAX_READINGS) waterData.shift();
 
   res.send({ success: true });
 });
@@ -34,4 +31,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
